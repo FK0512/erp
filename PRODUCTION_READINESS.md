@@ -6,13 +6,14 @@ Run these SQL files in this order in the Supabase SQL editor:
 
 1. `supabase/auth_role_setup.sql`
 2. `supabase/erp_modules.sql`
-3. `supabase/classes_rls_fix.sql`
-4. `supabase/classes_constraint_repair.sql`
-5. `supabase/classes_teacher_profile_fix.sql`
-6. `supabase/attendance_context_fix.sql`
-7. `supabase/announcements_schema_fix.sql`
-8. `supabase/announcements_policy_fix.sql`
-9. `supabase/auth_role_policy_fix.sql`
+3. `supabase/production_alignment.sql`
+4. `supabase/classes_rls_fix.sql`
+5. `supabase/classes_constraint_repair.sql`
+6. `supabase/classes_teacher_profile_fix.sql`
+7. `supabase/attendance_context_fix.sql`
+8. `supabase/announcements_schema_fix.sql`
+9. `supabase/announcements_policy_fix.sql`
+10. `supabase/auth_role_policy_fix.sql`
 
 Use these only when needed for repair/debug:
 
@@ -26,6 +27,9 @@ Create a local `.env` file from `.env.example` and fill in:
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
+
+The browser client will not work with only the URL. You need the project's public anon key from:
+`Supabase Dashboard -> Project Settings -> API -> anon public`
 
 ## 3. Required production checks
 
@@ -88,6 +92,7 @@ select school_id, class_name, section from public.classes order by class_name, s
 select status, count(*) from public.attendance group by status order by status;
 select audience, count(*) from public.announcements group by audience order by audience;
 select status, count(*) from public.fees group by status order by status;
+select count(*) as report_cards from public.report_cards;
 ```
 
 Check for orphaned student accounts:

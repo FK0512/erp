@@ -4,19 +4,25 @@ create table if not exists public.classes (
   id uuid primary key default gen_random_uuid(),
   school_id uuid not null references public.schools(id) on delete cascade,
   class_name text not null,
+  section text not null default 'A',
   teacher_profile_id uuid references public.user_profiles(id) on delete set null,
   created_at timestamptz not null default now(),
-  unique (school_id, class_name)
+  unique (school_id, class_name, section)
 );
 
 alter table if exists public.classes
-drop column if exists section;
+add column if not exists section text not null default 'A';
+
+update public.classes
+set section = 'A'
+where section is null or btrim(section) = '';
 
 create table if not exists public.students (
   id uuid primary key default gen_random_uuid(),
   school_id uuid not null references public.schools(id) on delete cascade,
   user_profile_id uuid unique references public.user_profiles(id) on delete set null,
   class_id uuid references public.classes(id) on delete set null,
+  name text,
   full_name text not null,
   roll_number text not null,
   admission_number text,
@@ -190,8 +196,15 @@ create table if not exists public.daily_schedule (
 );
 
 create index if not exists idx_classes_school_id on public.classes(school_id);
-create unique index if not exists idx_classes_school_class_unique on public.classes(school_id, class_name);
+create unique index if not exists idx_classes_school_class_unique on public.classes(school_id, class_name, section);
 create index if not exists idx_classes_teacher_profile_id on public.classes(teacher_profile_id);
+
+alter table if exists public.students
+add column if not exists name text;
+
+update public.students
+set name = full_name
+where name is null or btrim(name) = '';
 
 create or replace function public.ensure_school_classes(
   p_school_id uuid,
@@ -218,9 +231,9 @@ begin
   end if;
 
   for v_class_num in 1..12 loop
-    insert into public.classes (school_id, class_name, teacher_profile_id)
-    values (p_school_id, v_class_num::text, p_teacher_profile_id)
-    on conflict (school_id, class_name)
+    insert into public.classes (school_id, class_name, section, teacher_profile_id)
+    values (p_school_id, v_class_num::text, 'A', p_teacher_profile_id)
+    on conflict (school_id, class_name, section)
     do update set teacher_profile_id = coalesce(public.classes.teacher_profile_id, excluded.teacher_profile_id);
   end loop;
 end;
@@ -308,7 +321,6 @@ alter table public.announcements enable row level security;
 alter table public.homework enable row level security;
 alter table public.marks enable row level security;
 alter table public.daily_schedule enable row level security;
-alter table public.report_cards enable row level security;
 
 drop policy if exists "classes school scoped select" on public.classes;
 create policy "classes school scoped select"

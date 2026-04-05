@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate, Outlet, Route, Routes, useNavigate } from "react-router-dom";
-import { supabase } from "./lib/supabaseClient";
+import { invalidSupabaseEnvVars, isSupabaseConfigured, supabase } from "./lib/supabaseClient";
 import { useSubscriptionGuard } from "./hooks/useSubscriptionGuard";
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
@@ -226,6 +226,7 @@ function AuthPage({
   busy,
   message,
   errorText,
+  configError,
   mode,
   setMode,
   loginForm,
@@ -247,6 +248,7 @@ function AuthPage({
         {loading ? <p className="status-line">Loading session...</p> : null}
         {message ? <p className="success-text">{message}</p> : null}
         {errorText ? <p className="error-text">{errorText}</p> : null}
+        {configError ? <p className="error-text">{configError}</p> : null}
 
         <div className="auth-layout">
           <div className="auth-tabs">
@@ -555,8 +557,19 @@ export default function App() {
   const [errorText, setErrorText] = useState("");
   const [loginForm, setLoginForm] = useState(emptyLoginForm);
   const [signupForm, setSignupForm] = useState(emptySignupForm);
+  const configError = isSupabaseConfigured
+    ? ""
+    : `Supabase is not configured correctly. Replace ${invalidSupabaseEnvVars.join(" and ")} in your local .env file with your real project values.`;
 
   useEffect(() => {
+    if (!isSupabaseConfigured) {
+      setSession(null);
+      setProfile(null);
+      setLoading(false);
+      setErrorText("");
+      return undefined;
+    }
+
     let mounted = true;
 
     async function initializeAuth() {
@@ -672,13 +685,27 @@ export default function App() {
 
   async function handleLogin(event) {
     event.preventDefault();
+    if (!isSupabaseConfigured) {
+      setErrorText(configError);
+      return;
+    }
     setBusy(true);
     setErrorText("");
     setMessage("");
-    const { error } = await supabase.auth.signInWithPassword({
-      email: loginForm.email.trim(),
-      password: loginForm.password,
-    });
+    let error = null;
+
+    try {
+      const result = await supabase.auth.signInWithPassword({
+        email: loginForm.email.trim(),
+        password: loginForm.password,
+      });
+      error = result.error;
+    } catch (networkError) {
+      error = {
+        message:
+          "Could not reach Supabase. Verify VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, internet access, and restart the Vite app after editing .env.",
+      };
+    }
 
     if (error) {
       setErrorText(getFriendlyErrorMessage(error));
@@ -692,6 +719,10 @@ export default function App() {
 
   async function handleSignup(event) {
     event.preventDefault();
+    if (!isSupabaseConfigured) {
+      setErrorText(configError);
+      return;
+    }
     setBusy(true);
     setErrorText("");
     setMessage("");
@@ -702,32 +733,42 @@ export default function App() {
       return;
     }
 
-    const { error } = await supabase.auth.signUp({
-      email: signupForm.email.trim(),
-      password: signupForm.password,
-      options: {
-        data: {
-          name: signupForm.name.trim(),
-          role: signupForm.role,
-          school_code:
-            signupForm.role === "admin"
-              ? undefined
-              : signupForm.schoolCode.trim().toUpperCase(),
-          school_name:
-            signupForm.role === "admin"
-              ? signupForm.schoolName.trim()
-              : undefined,
-          class_name:
-            signupForm.role === "student"
-              ? signupForm.className.trim()
-              : undefined,
-          section:
-            signupForm.role === "student"
-              ? signupForm.section.trim().toUpperCase()
-              : undefined,
+    let error = null;
+
+    try {
+      const result = await supabase.auth.signUp({
+        email: signupForm.email.trim(),
+        password: signupForm.password,
+        options: {
+          data: {
+            name: signupForm.name.trim(),
+            role: signupForm.role,
+            school_code:
+              signupForm.role === "admin"
+                ? undefined
+                : signupForm.schoolCode.trim().toUpperCase(),
+            school_name:
+              signupForm.role === "admin"
+                ? signupForm.schoolName.trim()
+                : undefined,
+            class_name:
+              signupForm.role === "student"
+                ? signupForm.className.trim()
+                : undefined,
+            section:
+              signupForm.role === "student"
+                ? signupForm.section.trim().toUpperCase()
+                : undefined,
+          },
         },
-      },
-    });
+      });
+      error = result.error;
+    } catch (networkError) {
+      error = {
+        message:
+          "Could not reach Supabase. Verify VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, internet access, and restart the Vite app after editing .env.",
+      };
+    }
 
     if (error) {
       setErrorText(getFriendlyErrorMessage(error));
@@ -743,6 +784,11 @@ export default function App() {
   }
 
   async function handleLogout() {
+    if (!isSupabaseConfigured) {
+      setSession(null);
+      setProfile(null);
+      return;
+    }
     setBusy(true);
     setErrorText("");
     setMessage("");
@@ -774,6 +820,7 @@ export default function App() {
               busy={busy}
               message={message}
               errorText={errorText}
+              configError={configError}
               mode={mode}
               setMode={setMode}
               loginForm={loginForm}
